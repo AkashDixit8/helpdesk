@@ -1,0 +1,10 @@
+import { Router } from "express";
+import { authenticateToken } from "../middleware/auth.middleware";
+import { authorizeRoles } from "../middleware/role.middleware";
+import { getUser, listUsers, updateUserController } from "../controllers/user.controller";
+const router = Router();
+router.use(authenticateToken);
+router.get("/", authorizeRoles("ADMIN"), listUsers);
+router.get("/:id", getUser);
+router.put("/:id", updateUserController);
+export default router;

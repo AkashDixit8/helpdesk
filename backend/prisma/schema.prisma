@@ -1,0 +1,105 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+model User {
+  id                  Int             @id @default(autoincrement())
+  name                String
+  email               String          @unique
+  password            String
+  role                Role            @default(CUSTOMER)
+  createdAt           DateTime        @default(now()) @map("created_at")
+  invitationExpiresAt DateTime?       @map("invitation_expires_at")
+  invitationTokenHash String?         @unique @map("invitation_token_hash")
+  comments            Comment[]
+  historyChanges      TicketHistory[]
+  assignedTickets     Ticket[]        @relation("TicketAssignee")
+  createdTickets      Ticket[]        @relation("TicketCreator")
+
+  @@map("users")
+}
+
+model Category {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  description String?
+  tickets     Ticket[]
+
+  @@map("categories")
+}
+
+model Ticket {
+  id           Int             @id @default(autoincrement())
+  title        String
+  description  String
+  status       TicketStatus    @default(OPEN)
+  priority     Priority        @default(MEDIUM)
+  createdAt    DateTime        @default(now()) @map("created_at")
+  createdById  Int             @map("created_by")
+  assignedToId Int?            @map("assigned_to")
+  categoryId   Int             @map("category_id")
+  comments     Comment[]
+  history      TicketHistory[]
+  assignedTo   User?           @relation("TicketAssignee", fields: [assignedToId], references: [id])
+  category     Category        @relation(fields: [categoryId], references: [id])
+  createdBy    User            @relation("TicketCreator", fields: [createdById], references: [id])
+
+  @@index([assignedToId], map: "tickets_assigned_to_fkey")
+  @@index([categoryId], map: "tickets_category_id_fkey")
+  @@index([createdById], map: "tickets_created_by_fkey")
+  @@map("tickets")
+}
+
+model Comment {
+  id         Int      @id @default(autoincrement())
+  comment    String
+  createdAt  DateTime @default(now()) @map("created_at")
+  ticketId   Int      @map("ticket_id")
+  userId     Int      @map("user_id")
+  isInternal Boolean  @default(false) @map("is_internal")
+  ticket     Ticket   @relation(fields: [ticketId], references: [id])
+  user       User     @relation(fields: [userId], references: [id])
+
+  @@index([ticketId], map: "comments_ticket_id_fkey")
+  @@index([userId], map: "comments_user_id_fkey")
+  @@map("comments")
+}
+
+model TicketHistory {
+  id        Int           @id @default(autoincrement())
+  oldStatus TicketStatus? @map("old_status")
+  newStatus TicketStatus  @map("new_status")
+  createdAt DateTime      @default(now()) @map("created_at")
+  ticketId  Int           @map("ticket_id")
+  changedBy Int           @map("changed_by")
+  user      User          @relation(fields: [changedBy], references: [id])
+  ticket    Ticket        @relation(fields: [ticketId], references: [id])
+
+  @@index([changedBy], map: "ticket_history_changed_by_fkey")
+  @@index([ticketId], map: "ticket_history_ticket_id_fkey")
+  @@map("ticket_history")
+}
+
+enum Role {
+  CUSTOMER
+  AGENT
+  ADMIN
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}

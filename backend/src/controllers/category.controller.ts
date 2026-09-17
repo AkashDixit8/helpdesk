@@ -1,0 +1,7 @@
+import { Request, Response } from "express";
+import { createCategory, deleteCategory, getCategories, updateCategory } from "../services/category.service";
+
+export const listCategories = async (_req: Request, res: Response) => { try { res.json({ success: true, ...(await getCategories()) }); } catch (e: any) { res.status(500).json({ success: false, message: e.message }); } };
+export const createCategoryController = async (req: Request, res: Response) => { try { if (!req.body.name) return res.status(400).json({ success: false, message: "Category name is required" }); res.status(201).json({ success: true, message: "Category created successfully", category: await createCategory(req.body.name, req.body.description) }); } catch (e: any) { res.status(400).json({ success: false, message: e.message }); } };
+export const updateCategoryController = async (req: Request, res: Response) => { try { res.json({ success: true, message: "Category updated successfully", category: await updateCategory(Number(req.params.id), req.body.name, req.body.description) }); } catch (e: any) { res.status(400).json({ success: false, message: e.message }); } };
+export const deleteCategoryController = async (req: Request, res: Response) => { try { await deleteCategory(Number(req.params.id)); res.json({ success: true, message: "Category deleted successfully" }); } catch (e: any) { res.status(400).json({ success: false, message: e.message }); } };

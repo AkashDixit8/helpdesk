@@ -1,0 +1,11 @@
+import { Router } from "express";
+import { authenticateToken } from "../middleware/auth.middleware";
+import { authorizeRoles } from "../middleware/role.middleware";
+import { listCategories, createCategoryController, updateCategoryController, deleteCategoryController } from "../controllers/category.controller";
+const router = Router();
+router.use(authenticateToken);
+router.get("/", listCategories);
+router.post("/", authorizeRoles("ADMIN"), createCategoryController);
+router.put("/:id", authorizeRoles("ADMIN"), updateCategoryController);
+router.delete("/:id", authorizeRoles("ADMIN"), deleteCategoryController);
+export default router;

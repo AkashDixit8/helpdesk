@@ -1,0 +1,13 @@
+import { Router } from "express";
+import { createTicket, getTickets, getTicketById, updateTicket, deleteTicket, createComment, takeTicket } from "../controllers/ticket.controller";
+import { authenticateToken } from "../middleware/auth.middleware";
+import { authorizeRoles } from "../middleware/role.middleware";
+const router = Router();
+router.post("/", authenticateToken, createTicket);
+router.get("/", authenticateToken, getTickets);
+router.get("/:id", authenticateToken, getTicketById);
+router.post("/:id/take", authenticateToken, authorizeRoles("AGENT"), takeTicket);
+router.put("/:id", authenticateToken, updateTicket);
+router.delete("/:id", authenticateToken, deleteTicket);
+router.post("/:id/comments", authenticateToken, createComment);
+export default router;
