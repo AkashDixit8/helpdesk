@@ -220,3 +220,72 @@ export const createUserInvitation = async (
     expiresAt,
   };
 };
+
+export const deleteUser = async (
+  id: number
+) => {
+  const user = await prisma.user.findUnique({
+    where: { id },
+  });
+
+  if (!user) {
+    throw new Error("User not found.");
+  }
+
+  // Never allow deletion of the last administrator.
+  if (user.role === Role.ADMIN) {
+    const adminCount = await prisma.user.count({
+      where: { role: Role.ADMIN },
+    });
+
+    if (adminCount <= 1) {
+      throw new Error(
+        "The last administrator cannot be deleted."
+      );
+    }
+  }
+
+  // Check whether the user is referenced by existing records.
+  const [
+    commentsCount,
+    historyCount,
+    createdTicketsCount,
+    assignedTicketsCount,
+  ] = await Promise.all([
+    prisma.comment.count({
+      where: { userId: id },
+    }),
+
+    prisma.ticketHistory.count({
+      where: { changedBy: id },
+    }),
+
+    prisma.ticket.count({
+      where: { createdById: id },
+    }),
+
+    prisma.ticket.count({
+      where: { assignedToId: id },
+    }),
+  ]);
+
+  if (
+    commentsCount > 0 ||
+    historyCount > 0 ||
+    createdTicketsCount > 0 ||
+    assignedTicketsCount > 0
+  ) {
+    throw new Error(
+      "This user cannot be deleted because they are associated with existing tickets, comments, or ticket history."
+    );
+  }
+
+  await prisma.user.delete({
+    where: { id },
+  });
+
+  return {
+    id,
+    message: "User deleted successfully.",
+  };
+};

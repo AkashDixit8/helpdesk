@@ -19,6 +19,10 @@ export default function AdminUsers() {
   const [search, setSearch] = useState("");
   const [role, setRole] = useState("ALL");
   const [saving, setSaving] = useState(null);
+  const [deleting, setDeleting] = useState(null);
+
+  // Delete confirmation modal
+  const [deleteTarget, setDeleteTarget] = useState(null);
 
   const [showInvite, setShowInvite] = useState(false);
   const [inviteLoading, setInviteLoading] = useState(false);
@@ -108,6 +112,52 @@ export default function AdminUsers() {
       );
     } finally {
       setSaving(null);
+    }
+  };
+
+  // Open delete confirmation modal
+  const openDeleteModal = (user) => {
+    setDeleteTarget({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+    });
+
+    setError("");
+  };
+
+  // Close delete confirmation modal
+  const closeDeleteModal = () => {
+    if (deleting) return;
+
+    setDeleteTarget(null);
+  };
+
+  // Delete selected user
+  const deleteUser = async () => {
+    if (!deleteTarget) return;
+
+    setDeleting(deleteTarget.id);
+    setError("");
+
+    try {
+      await api.delete(
+        `/admin/users/${deleteTarget.id}`
+      );
+
+      setDeleteTarget(null);
+
+      await load();
+    } catch (err) {
+      console.error("DELETE USER ERROR:", err);
+
+      setError(
+        err?.response?.data?.message ||
+          err?.message ||
+          "Unable to delete user."
+      );
+    } finally {
+      setDeleting(null);
     }
   };
 
@@ -399,6 +449,7 @@ export default function AdminUsers() {
                       <th>Role</th>
                       <th>Joined</th>
                       <th>Access</th>
+                      <th>Actions</th>
                     </tr>
                   </thead>
 
@@ -444,7 +495,8 @@ export default function AdminUsers() {
                           <select
                             value={user.role}
                             disabled={
-                              saving === user.id
+                              saving === user.id ||
+                              deleting === user.id
                             }
                             onChange={(event) =>
                               changeRole(
@@ -466,6 +518,48 @@ export default function AdminUsers() {
                             </option>
                           </select>
                         </td>
+
+                        <td>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              openDeleteModal(user)
+                            }
+                            disabled={
+                              deleting === user.id
+                            }
+                            style={{
+                              border:
+                                "1px solid #fecaca",
+                              background:
+                                "#fff1f2",
+                              color:
+                                "#dc2626",
+                              padding:
+                                "8px 12px",
+                              borderRadius:
+                                "8px",
+                              cursor:
+                                deleting ===
+                                user.id
+                                  ? "not-allowed"
+                                  : "pointer",
+                              fontWeight: 600,
+                              fontSize:
+                                "13px",
+                              opacity:
+                                deleting ===
+                                user.id
+                                  ? 0.6
+                                  : 1,
+                            }}
+                          >
+                            {deleting ===
+                            user.id
+                              ? "Deleting..."
+                              : "Delete"}
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -482,6 +576,214 @@ export default function AdminUsers() {
         )}
       </div>
 
+      {/* =========================================
+          DELETE USER CONFIRMATION MODAL
+          ========================================= */}
+      {deleteTarget && (
+        <div
+          onClick={closeDeleteModal}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 10000,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "24px",
+            background: "rgba(15, 23, 42, 0.58)",
+            backdropFilter: "blur(6px)",
+          }}
+        >
+          <div
+            onClick={(event) =>
+              event.stopPropagation()
+            }
+            style={{
+              width: "100%",
+              maxWidth: "440px",
+              background: "#ffffff",
+              borderRadius: "18px",
+              padding: "28px",
+              boxShadow:
+                "0 25px 70px rgba(0, 0, 0, 0.25)",
+              boxSizing: "border-box",
+            }}
+          >
+            {/* Warning icon */}
+            <div
+              style={{
+                width: "48px",
+                height: "48px",
+                borderRadius: "50%",
+                background: "#fff1f2",
+                border: "1px solid #fecdd3",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                marginBottom: "18px",
+                color: "#dc2626",
+                fontSize: "22px",
+                fontWeight: 700,
+              }}
+            >
+              !
+            </div>
+
+            {/* Heading */}
+            <h2
+              style={{
+                margin: "0 0 8px",
+                fontSize: "21px",
+                lineHeight: 1.3,
+                fontWeight: 700,
+                color: "#172033",
+              }}
+            >
+              Delete user?
+            </h2>
+
+            <p
+              style={{
+                margin: "0 0 18px",
+                color: "#64748b",
+                fontSize: "14px",
+                lineHeight: 1.6,
+              }}
+            >
+              You are about to permanently remove
+              this user from the helpdesk workspace.
+            </p>
+
+            {/* User information */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "12px",
+                padding: "14px",
+                marginBottom: "18px",
+                background: "#f8fafc",
+                border: "1px solid #e2e8f0",
+                borderRadius: "12px",
+              }}
+            >
+              <Avatar
+                name={deleteTarget.name}
+                small
+              />
+
+              <div
+                style={{
+                  minWidth: 0,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "14px",
+                    fontWeight: 700,
+                    color: "#172033",
+                    marginBottom: "3px",
+                  }}
+                >
+                  {deleteTarget.name}
+                </div>
+
+                <div
+                  style={{
+                    fontSize: "13px",
+                    color: "#64748b",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {deleteTarget.email}
+                </div>
+              </div>
+            </div>
+
+            {/* Warning */}
+            <div
+              style={{
+                display: "flex",
+                gap: "10px",
+                padding: "12px 14px",
+                marginBottom: "24px",
+                background: "#fffbeb",
+                border: "1px solid #fde68a",
+                borderRadius: "10px",
+                color: "#92400e",
+                fontSize: "13px",
+                lineHeight: 1.5,
+              }}
+            >
+              <span
+                style={{
+                  fontWeight: 700,
+                }}
+              >
+                Warning:
+              </span>
+
+              <span>
+                This action cannot be undone. The
+                user will permanently lose access to
+                the system.
+              </span>
+            </div>
+
+            {/* Actions */}
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: "10px",
+              }}
+            >
+              <button
+                type="button"
+                onClick={closeDeleteModal}
+                disabled={!!deleting}
+                className="btn btn-secondary"
+                style={{
+                  minWidth: "90px",
+                }}
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={deleteUser}
+                disabled={!!deleting}
+                style={{
+                  minWidth: "115px",
+                  padding: "10px 16px",
+                  borderRadius: "9px",
+                  border:
+                    "1px solid #dc2626",
+                  background: "#dc2626",
+                  color: "#ffffff",
+                  fontWeight: 600,
+                  fontSize: "14px",
+                  cursor: deleting
+                    ? "not-allowed"
+                    : "pointer",
+                  opacity: deleting ? 0.7 : 1,
+                }}
+              >
+                {deleting
+                  ? "Deleting..."
+                  : "Delete User"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================
+          INVITE USER MODAL
+          ========================================= */}
       {showInvite && (
         <div
           onClick={closeInvite}

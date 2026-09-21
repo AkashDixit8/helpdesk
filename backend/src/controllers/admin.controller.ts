@@ -5,6 +5,7 @@ import {
   changeUserRole as changeUserRoleService,
   assignTicket,
   createUserInvitation,
+  deleteUser as deleteUserService,
 } from "../services/admin.service";
 
 import {
@@ -112,6 +113,38 @@ export const changeUserRole = async (
       message:
         error?.message ||
         "Unable to update user role.",
+    });
+  }
+};
+
+export const removeUser = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const userId = Number(req.params.id);
+
+    if (!Number.isInteger(userId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid user ID.",
+      });
+    }
+
+    const result = await deleteUserService(userId);
+
+    return res.json({
+      success: true,
+      message: result.message,
+    });
+  } catch (error: any) {
+    console.error("DELETE USER ERROR:", error);
+
+    return res.status(400).json({
+      success: false,
+      message:
+        error?.message ||
+        "Unable to delete user.",
     });
   }
 };

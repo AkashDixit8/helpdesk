@@ -5,6 +5,7 @@ import {
   getUsers,
   changeUserRole,
   inviteUser,
+  removeUser,
   addCategory,
   listCategories,
   editCategory,
@@ -38,6 +39,11 @@ router.post(
 router.put(
   "/users/:id/role",
   changeUserRole
+);
+
+router.delete(
+  "/users/:id",
+  removeUser
 );
 
 router.get(
