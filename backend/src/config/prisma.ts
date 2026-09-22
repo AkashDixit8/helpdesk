@@ -20,6 +20,7 @@ const adapter = new PrismaMariaDb({
   database: url.pathname.replace(/^\//, ""),
   connectionLimit: 5,
   connectTimeout: 30000,
+  allowPublicKeyRetrieval: true,
 });
 
 const prisma = new PrismaClient({
