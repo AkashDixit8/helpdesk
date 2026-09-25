@@ -30,13 +30,21 @@
 - [Application Setup](#application-setup)
   - [Build \& Containerization Environment](#build--containerization-environment)
     - [1. Docker Multi-Stage Builds](#1-docker-multi-stage-builds)
-      - [Frontend Dockerfile (`frontend/Dockerfile`)](#frontend-dockerfile-frontenddockerfile)
-      - [Backend Dockerfile (`backend/Dockerfile`)](#backend-dockerfile-backenddockerfile)
     - [2. Local Docker Development Orchestration](#2-local-docker-development-orchestration)
   - [Application Deployment](#application-deployment)
     - [1. Push Container Images to AWS ECR](#1-push-container-images-to-aws-ecr)
   - [Load Balancing \& ECS Fargate Execution](#load-balancing--ecs-fargate-execution)
     - [1. Register AWS ECS Fargate Task Definition](#1-register-aws-ecs-fargate-task-definition)
+- [Monitoring and Maintenance](#monitoring-and-maintenance)
+  - [CloudWatch Setup](#cloudwatch-setup)
+    - [1. Container Log Management Configuration](#1-container-log-management-configuration)
+- [Security Best Practices](#security-best-practices)
+- [Troubleshooting Guide](#troubleshooting-guide)
+  - [Common Issues and Solutions](#common-issues-and-solutions)
+    - [1. ECS Task Startup Failure: ECR Image Pull Timeout (`ResourceInitializationError`)](#1-ecs-task-startup-failure-ecr-image-pull-timeout-resourceinitializationerror)
+- [Contributing](#contributing)
+  - [How to Contribute](#how-to-contribute)
+  - [🛠️ Author \& Community](#️-author--community)
 
 ---
 
@@ -99,15 +107,15 @@ The project features a **production-oriented AWS Cloud architecture** leveraging
 - Create an [AWS Free Tier Account](https://aws.amazon.com/free/)
 - Install and configure AWS CLI v2:
 
-  *Linux:*
+  For Linux:
   curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
   unzip awscliv2.zip
   sudo ./aws/install
 
-  *macOS:*
+  For macOS:
   brew install awscli
 
-  *Configure AWS CLI Credentials:*
+  Configure AWS CLI Credentials:
   aws configure
 
 ### 2. Development & Container Runtime Tools
@@ -115,19 +123,20 @@ The project features a **production-oriented AWS Cloud architecture** leveraging
 - **Node.js 20+** & **npm**
 - **Docker Desktop** (`v24.0+`) & **Docker Compose**
 
-  *Verify Docker installation:*
+  Verify Docker installation:
   docker --version
   docker-compose --version
 
 - **Git**: Version control system
 
-  *Clone the project repository:*
+  Clone the project repository:
   git clone https://github.com/AkashDixit8/helpdesk.git
   cd helpdesk
 
 ### 3. Database & ORM Tooling
 
 - **Prisma CLI**:
+
   npm install -g prisma
 
 ---
@@ -138,33 +147,33 @@ The project features a **production-oriented AWS Cloud architecture** leveraging
 
 ### 1. VPC & Internet Gateway Provisioning
 
-*Create primary application VPC:*
+Create primary application VPC:
 aws ec2 create-vpc --cidr-block 10.0.0.0/16 --tag-specifications 'ResourceType=vpc,Tags=[{Key=Name,Value=helpdesk-vpc}]' --region ap-south-1
 
-*Create and attach Internet Gateway:*
+Create and attach Internet Gateway:
 aws ec2 create-internet-gateway --tag-specifications 'ResourceType=internet-gateway,Tags=[{Key=Name,Value=helpdesk-igw}]' --region ap-south-1
 aws ec2 attach-internet-gateway --vpc-id vpc-xxx --internet-gateway-id igw-xxx --region ap-south-1
 
 ### 2. Subnet Topology Allocation
 
-*Public Subnet A (ALB / IGW):*
+Public Subnet A (ALB / IGW):
 aws ec2 create-subnet --vpc-id vpc-xxx --cidr-block 10.0.1.0/24 --availability-zone ap-south-1a --tag-specifications 'ResourceType=subnet,Tags=[{Key=Name,Value=helpdesk-public-a}]'
 
-*Private Application Subnet A (ECS Fargate Tasks):*
+Private Application Subnet A (ECS Fargate Tasks):
 aws ec2 create-subnet --vpc-id vpc-xxx --cidr-block 10.0.11.0/24 --availability-zone ap-south-1a --tag-specifications 'ResourceType=subnet,Tags=[{Key=Name,Value=helpdesk-app-private-a}]'
 
-*Private Database Subnet A (RDS MySQL):*
+Private Database Subnet A (RDS MySQL):
 aws ec2 create-subnet --vpc-id vpc-xxx --cidr-block 10.0.21.0/24 --availability-zone ap-south-1a --tag-specifications 'ResourceType=subnet,Tags=[{Key=Name,Value=helpdesk-db-private-a}]'
 
 ### 3. NAT Gateway & Route Table Configuration
 
-*Allocate Elastic IP for NAT Gateway:*
+Allocate Elastic IP for NAT Gateway:
 aws ec2 allocate-address --domain vpc --region ap-south-1
 
-*Create Regional NAT Gateway in Public Subnet:*
+Create Regional NAT Gateway in Public Subnet:
 aws ec2 create-nat-gateway --subnet-id subnet-public-a-xxx --allocation-id eipalloc-xxx --tag-specifications 'ResourceType=natgateway,Tags=[{Key=Name,Value=helpdesk-nat}]'
 
-*Create Private Application Route Table pointing outbound traffic to NAT Gateway:*
+Create Private Application Route Table pointing outbound traffic to NAT Gateway:
 aws ec2 create-route-table --vpc-id vpc-xxx --tag-specifications 'ResourceType=route-table,Tags=[{Key=Name,Value=helpdesk-private-app-rt}]'
 aws ec2 create-route --route-table-id rtb-private-app-xxx --destination-cidr-block 0.0.0.0/0 --gateway-id nat-xxx
 
@@ -172,15 +181,15 @@ aws ec2 create-route --route-table-id rtb-private-app-xxx --destination-cidr-blo
 
 ### 1. Security Group Hierarchy
 
-*1. Application Load Balancer Security Group (Public Ingress):*
+1. Application Load Balancer Security Group (Public Ingress):
 aws ec2 create-security-group --group-name helpdesk-alb-sg --description "Public ingress rule for ALB" --vpc-id vpc-xxx
 aws ec2 authorize-security-group-ingress --group-id sg-alb-xxx --protocol tcp --port 80 --cidr 0.0.0.0/0
 
-*2. Backend ECS Security Group (Restricted to ALB Traffic):*
+2. Backend ECS Security Group (Restricted to ALB Traffic):
 aws ec2 create-security-group --group-name helpdesk-backend-sg --description "Allow inbound traffic from ALB only" --vpc-id vpc-xxx
 aws ec2 authorize-security-group-ingress --group-id sg-backend-xxx --protocol tcp --port 5000 --source-group sg-alb-xxx
 
-*3. RDS Security Group (Restricted to Backend Security Group):*
+3. RDS Security Group (Restricted to Backend Security Group):
 aws ec2 create-security-group --group-name helpdesk-rds-sg --description "Allow MySQL traffic from backend ECS tasks only" --vpc-id vpc-xxx
 aws ec2 authorize-security-group-ingress --group-id sg-rds-xxx --protocol tcp --port 3306 --source-group sg-backend-xxx
 
@@ -188,21 +197,21 @@ aws ec2 authorize-security-group-ingress --group-id sg-rds-xxx --protocol tcp --
 
 ### 1. RDS MySQL Instance Provisioning
 
-*Create DB Subnet Group across private DB subnets:*
+Create DB Subnet Group across private DB subnets:
 aws rds create-db-subnet-group --db-subnet-group-name helpdesk-db-subnet-group --db-subnet-group-description "Private subnets for Helpdesk RDS MySQL" --subnet-ids '["subnet-db-a-xxx", "subnet-db-b-xxx"]'
 
-*Provision Amazon RDS MySQL Instance:*
+Provision Amazon RDS MySQL Instance:
 aws rds create-db-instance --db-instance-identifier helpdesk-rds --db-instance-class db.t3.micro --engine mysql --master-username root --master-user-password "YourSecurePassword123!" --allocated-storage 20 --no-publicly-accessible --vpc-security-group-ids sg-rds-xxx --db-subnet-group-name helpdesk-db-subnet-group --region ap-south-1
 
 ### 2. Schema Migration & Backup Execution
 
-*Execute Prisma Schema Migrations against target database:*
+Execute Prisma Schema Migrations against target database:
 npx prisma migrate deploy
 
-*Export local development database backup:*
+Export local development database backup:
 mysqldump -h localhost -u root -p helpdesk > helpdesk-backup.sql
 
-*Restore/Import SQL data into target RDS instance:*
+Restore/Import SQL data into target RDS instance:
 mysql -h helpdesk-rds.xxxx.ap-south-1.rds.amazonaws.com -u root -p helpdesk < helpdesk-backup.sql
 
 ---
@@ -213,7 +222,7 @@ mysql -h helpdesk-rds.xxxx.ap-south-1.rds.amazonaws.com -u root -p helpdesk < he
 
 ### 1. Docker Multi-Stage Builds
 
-#### Frontend Dockerfile (`frontend/Dockerfile`)
+Frontend Dockerfile (`frontend/Dockerfile`):
 
 FROM node:20-alpine AS builder
 WORKDIR /app
@@ -228,7 +237,7 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
 
-#### Backend Dockerfile (`backend/Dockerfile`)
+Backend Dockerfile (`backend/Dockerfile`):
 
 FROM node:20-alpine
 WORKDIR /app
@@ -244,24 +253,24 @@ CMD ["npm", "run", "start"]
 
 ### 2. Local Docker Development Orchestration
 
-*Spin up complete stack locally (Frontend, Backend API, MySQL):*
+Spin up complete stack locally (Frontend, Backend API, MySQL):
 docker-compose up -d --build
 
-*Verify container status and ports:*
+Verify container status and ports:
 docker-compose ps
 
 ## Application Deployment
 
 ### 1. Push Container Images to AWS ECR
 
-*Authenticate Docker against AWS ECR:*
+Authenticate Docker against AWS ECR:
 aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin <aws_account_id>.dkr.ecr.ap-south-1.amazonaws.com
 
-*Create ECR Repositories:*
+Create ECR Repositories:
 aws ecr create-repository --repository-name helpdesk-frontend --region ap-south-1
 aws ecr create-repository --repository-name helpdesk-backend --region ap-south-1
 
-*Tag and Push Images:*
+Tag and Push Images:
 docker tag helpdesk-frontend:latest <aws_account_id>.dkr.ecr.ap-south-1.amazonaws.com/helpdesk-frontend:latest
 docker push <aws_account_id>.dkr.ecr.ap-south-1.amazonaws.com/helpdesk-frontend:latest
 
@@ -272,7 +281,7 @@ docker push <aws_account_id>.dkr.ecr.ap-south-1.amazonaws.com/helpdesk-backend:l
 
 ### 1. Register AWS ECS Fargate Task Definition
 
-```json
+Task Definition Configuration:
 {
   "family": "helpdesk-backend-task",
   "networkMode": "awsvpc",
@@ -283,7 +292,7 @@ docker push <aws_account_id>.dkr.ecr.ap-south-1.amazonaws.com/helpdesk-backend:l
   "containerDefinitions": [
     {
       "name": "helpdesk-backend",
-      "image": "<aws_account_id>[.dkr.ecr.ap-south-1.amazonaws.com/helpdesk-backend:latest](https://.dkr.ecr.ap-south-1.amazonaws.com/helpdesk-backend:latest)",
+      "image": "<aws_account_id>.dkr.ecr.ap-south-1.amazonaws.com/helpdesk-backend:latest",
       "portMappings": [
         {
           "containerPort": 5000,
@@ -303,3 +312,67 @@ docker push <aws_account_id>.dkr.ecr.ap-south-1.amazonaws.com/helpdesk-backend:l
     }
   ]
 }
+
+---
+
+# Monitoring and Maintenance
+
+## CloudWatch Setup
+
+### 1. Container Log Management Configuration
+
+Create CloudWatch Log Group for Backend ECS Service:
+aws logs create-log-group --log-group-name /ECS/HELPDESK-BACKEND-TASK --region ap-south-1
+
+Verify Log Stream Activity:
+aws logs describe-log-streams --log-group-name /ECS/HELPDESK-BACKEND-TASK --region ap-south-1
+
+---
+
+# Security Best Practices
+
+1. **Private Subnet Execution**: All compute tasks run in private application subnets without direct public IP addresses.
+2. **Cascading Security Groups**: Network ingress is tightly constrained to upstream security group IDs rather than broad IP ranges.
+3. **Non-Public Database Hosting**: Amazon RDS instances are configured without public accessibility (`PubliclyAccessible: false`).
+4. **Secrets Management**: Sensitive credentials, JWT secrets, and database passwords are injected dynamically via environment variables.
+
+---
+
+# Troubleshooting Guide
+
+## Common Issues and Solutions
+
+### 1. ECS Task Startup Failure: ECR Image Pull Timeout (`ResourceInitializationError`)
+
+ResourceInitializationError: unable to pull image or logs: api error: Cannot pull image: Get "https://<aws_account_id>.dkr.ecr.ap-south-1.amazonaws.com/v2/": i/o timeout
+
+- **Root Cause**: ECS Fargate tasks deployed inside private subnets lack a route to reach external AWS ECR endpoints over HTTPS (port 443).
+- **Resolution Path**:
+  1. Ensure the private subnet route table (`helpdesk-private-app-rt`) contains a valid `0.0.0.0/0` default route pointing to an active Regional **NAT Gateway** located in a public subnet.
+  2. Verify that the egress rules of `helpdesk-backend-sg` permit outbound HTTPS (443) traffic.
+  3. Alternatively, provision AWS VPC Interface Endpoints for ECR (`com.amazonaws.ap-south-1.ecr.dkr`, `com.amazonaws.ap-south-1.ecr.api`, and `s3` gateway endpoint) inside the VPC.
+
+---
+
+# Contributing
+
+## How to Contribute
+
+1. Fork the repository (`https://github.com/AkashDixit8/helpdesk`)
+2. Create a feature branch (`git checkout -b feature/NewHelpdeskFeature`)
+3. Commit your updates (`git commit -m 'Add new ticket analytics feature'`)
+4. Push to the branch (`git push origin feature/NewHelpdeskFeature`)
+5. Open a Pull Request for code review
+
+---
+
+## 🛠️ Author & Community
+
+This project is engineered and maintained by **[Akash Dixit](https://github.com/AkashDixit8)**.
+
+- **Role**: Junior Software Engineer | DevOps | AWS Cloud | Infrastructure
+- **GitHub**: [@AkashDixit8](https://github.com/AkashDixit8)
+- **Repository**: [AkashDixit8/helpdesk](https://github.com/AkashDixit8/helpdesk)
+
+> [!Important]
+> This documentation is continuously updated alongside infrastructure and application releases. Check back regularly for setup updates.
